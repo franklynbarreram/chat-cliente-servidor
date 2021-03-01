@@ -1,0 +1,172 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Socket.IO chat</title>
+    <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" integrity="sha512-HK5fgLBL+xu6dm/Ii3z4xhlSUyZgTT9tuc/hSrtw6uzJOvgRr2a9jyxxT1ely+B+xFAmJKVSTbpM/CuL7qxO8w==" crossorigin="anonymous" />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body{height: 100%;background: #2d2d2d;}
+      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+      form.chat { padding: 3px; position: fixed; bottom: 0; width: 100%; display: flex;;background: #2d2d2d;}
+      form.chat .mensaje { border: 1px solid grey;border-radius: 50px; padding: 10px; width: 90%; /*margin-right: .5%;*/ }
+      form.chat button { width: 14%; background:  #319688; border: none; padding: 10px; }
+      #messages { list-style-type: none; margin: 0; padding: 0; height: 85vh;overflow-y: auto;}
+      #messages li { padding: 5px 10px; }
+      #messages li:nth-child(odd) { background: #eee; }
+      #messages li:nth-child(even) { background: white; }
+      #messages { margin-bottom: 40px }
+      #contenedor_nombre{
+        width: 100%;
+        height: 100%;
+        display: flex;
+        text-align: center;
+        justify-content: center;
+        align-items: center;
+      }
+
+      #contenedor_nombre h2{
+        width: 100%;
+        font-size: 20px;
+        color: white;
+      }
+      #contenedor_nombre input{
+        margin-top: 20px;
+        width: 80%;
+        padding: 10px;
+        border-radius: 10px;
+      }
+      #contenedor_nombre button{
+        margin-top: 20px;
+        width: 200px;
+        padding: 10px;
+        background-color:royalblue;
+        color: white;
+        border-radius: 20px;
+        border-color: blue;
+        border: none;
+
+      }
+
+      #enviar_foto{
+        display: none;
+      }
+      .icon-clip{
+        transform: rotateZ(316deg);
+        font-size: 32px;
+        /*color: #505962;*/
+        color: white;
+      }
+      .enviar_mensajes button{
+        border-radius: 50px;
+        background-color: #319688;
+        margin: auto;
+        color: white;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+      <div align="center" id="contenedor_nombre">
+        <div class="content">
+          <form action="" class="datos_user_form">
+            <h2>Ingrese su nombre para el chat</h2>
+            <input type="text" id="nombre">
+            <button type="submit" id="enviar_nombre">Iniciar</button>
+          </form>
+          
+        </div>
+      </div>
+
+    <div id="chat" style="display:none">
+      <ul id="messages"></ul>
+      <div class="enviar_mensajes">
+        <form action="" class="chat" >
+          <input id="m" autocomplete="off"  class="mensaje" placeholder="Escriba su mensaje"/>
+          <label for="enviar_foto">
+            <i class="fas fa-paperclip icon-clip"></i>
+          </label>
+          <input type="file" id="enviar_foto">
+          <button>Enviar</button>
+        </form>
+      </div>
+    </div>
+    <!--
+      <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+    -->
+    <script src="https://cdn.socket.io/3.1.1/socket.io.min.js"></script>
+    <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+    <script>
+      
+      $(".datos_user_form").on("submit",function(e){
+          e.preventDefault();
+          $("#contenedor_nombre").hide();
+          $("#chat").show();
+      })
+
+
+      //var socket = io.connect('http://192.168.0.103:3000');
+      //My ip 192.168.0.112
+      $(function () {
+        //var socket = io.connect(); //Se crea el socket para este cliente
+        var socket = io.connect('http://190.75.232.88:5000');
+
+        $('form.chat').submit(function(){
+
+          /*Se emiten los datos al enviarse, esto va al servidor y busca
+            el socket.on dentro de la conexion que se encarga de leer el evento. 
+            desde allá el servidor debe emitir los datos que le llegan al mismo
+            socket que le esta llegando como callback
+            
+            OJO: socket.emit, es el cliente de este socket emitiendo el mensaje al server
+            el se encarga de recibir por parametro el socket del cliente
+
+            OJO 2: El cliente solo puede emitir, mas no puede escuchar eventos
+            sin que el servidor le envia cosas. cuando el servidor envia allí si
+            se escuchan los eventos
+          */
+          socket.emit('message',{ nombre: $("#nombre").val(), mensaje: $('#m').val() });
+          $('#m').val('');
+          return false;
+        });
+
+        $('#enviar_foto').on('change', function(eve) {
+          const fileImageName = eve.target.files[0].name;
+
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            //const base64Image = e.target.result.replace(/.*base64,/, '');
+            const base64Image = e.target.result;
+            socket.emit('image', {name: $("#nombre").val(),fileImageName, base64Image});
+          };
+          reader.readAsDataURL(eve.target.files[0]);
+
+        });
+
+      
+        socket.on('image', ({name,image,color}) => {
+          //Agregar al HTML
+          $('#messages').append(`<li style="display:flex;"><span style="color:#${color}">${name}:</span> <img style="width:200px; margin-left:1%;" src='data:image/jpg;${image}'/></li>`);
+          var objDiv = document.getElementById("messages");
+          objDiv.scrollTop = objDiv.scrollHeight;
+        });
+        
+
+        /*El cliente escucha el evento que envia el servidor
+          llega el evento y lo manejo a mi antojo los datos, este evento
+          socket.on lo escuchan  TODOS los clientes conectados a ese servidor
+          es decir este codigo existe en 5 clientes, a los 5 le llega la emision
+          del servidor y se muestran los datos que el les envia
+        */
+        socket.on('message', function(datos){
+          $('#messages').append(`<li><span style="color:#${datos.color}">${datos.nombre}</span>: ${datos.mensaje}</li>`);
+          window.scrollTo(0, document.body.scrollHeight);
+          var objDiv = document.getElementById("messages");
+          objDiv.scrollTop = objDiv.scrollHeight;
+        });
+      });
+    </script>
+  </body>
+</html>
